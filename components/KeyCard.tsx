@@ -1,176 +1,150 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
-import { Copy, Check, RotateCcw, Key as KeyIcon } from "lucide-react";
-import { clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { Copy, Check, Plus, RotateCcw } from "lucide-react";
 
 interface KeyCardProps {
   title: string;
-  type: "daily" | "weekly" | "monthly";
   description: string;
+  type: "daily" | "weekly" | "monthly";
 }
 
-export default function KeyCard({ title, type, description }: KeyCardProps) {
-  const [key, setKey] = useState<string>("");
-  const [usesLeft, setUsesLeft] = useState<number>(0);
-  const [isEditing, setIsEditing] = useState<boolean>(true);
-  const [copied, setCopied] = useState<boolean>(false);
-  const [inputValue, setInputValue] = useState<string>("");
+export default function KeyCard({ title, description, type }: KeyCardProps) {
+  const [key, setKey] = useState("");
+  const [usesLeft, setUsesLeft] = useState(0);
+  const [isEditing, setIsEditing] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [inputValue, setInputValue] = useState("");
+  const [mounted, setMounted] = useState(false);
+  const [showInput, setShowInput] = useState(false);
 
-  // Load state from local storage on mount
   useEffect(() => {
+    setMounted(true);
     const storedKey = localStorage.getItem(`shareky_${type}_key`);
     const storedUses = localStorage.getItem(`shareky_${type}_uses`);
-
     if (storedKey && storedUses) {
       const uses = parseInt(storedUses);
-      if (uses > 0) {
-        setKey(storedKey);
-        setUsesLeft(uses);
-        setIsEditing(false);
-      } else {
-        // If uses are 0, we stay in editing mode (or reset)
-        setIsEditing(true);
-      }
+      if (uses > 0) { setKey(storedKey); setUsesLeft(uses); setIsEditing(false); }
     }
   }, [type]);
 
   const handleSaveKey = () => {
     if (!inputValue.trim()) return;
-    
-    const newKey = inputValue.trim();
-    setKey(newKey);
+    setKey(inputValue.trim());
     setUsesLeft(3);
     setIsEditing(false);
-    
-    localStorage.setItem(`shareky_${type}_key`, newKey);
+    setShowInput(false);
+    localStorage.setItem(`shareky_${type}_key`, inputValue.trim());
     localStorage.setItem(`shareky_${type}_uses`, "3");
     setInputValue("");
   };
 
   const handleUseKey = () => {
-    // Copy logic
     navigator.clipboard.writeText(key);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-
-    // Decrement logic
+    setTimeout(() => setCopied(false), 1500);
     const newUses = usesLeft - 1;
     setUsesLeft(newUses);
     localStorage.setItem(`shareky_${type}_uses`, newUses.toString());
-
-    if (newUses <= 0) {
-        // Clear key from storage effectively requiring new input next time (or now)
-        // We delay the UI reset slightly or show a message?
-        // The requirement says: "sau khi hết 3 lần sẽ yêu cầu người dùng cập nhập key mới."
-        // So after this copy (which is the 3rd use), next interaction should ask for update.
-        // However, for better UX, we usually let them see it's 0, then reset.
-    }
   };
 
   const handleReset = () => {
-    setIsEditing(true);
-    setKey("");
-    setUsesLeft(0);
-    setInputValue("");
+    setIsEditing(true); setKey(""); setUsesLeft(0); setInputValue(""); setShowInput(false);
     localStorage.removeItem(`shareky_${type}_key`);
     localStorage.removeItem(`shareky_${type}_uses`);
   };
 
-  // If uses are 0 and we are not editing, force reset mode
-  useEffect(() => {
-    if (!isEditing && usesLeft <= 0) {
-        // We can either auto-switch to edit or show a "Renew" button
-        // Requirement: "sau khi hết 3 lần sẽ yêu cầu người dùng cập nhập key mới."
-    }
-  }, [usesLeft, isEditing]);
+  if (!mounted) return <div className="h-32 bg-white rounded-xl animate-pulse" />;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col h-full">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
-          <KeyIcon size={24} />
-        </div>
-        <div>
-            <h3 className="font-semibold text-lg text-gray-900">{title}</h3>
-            <p className="text-sm text-gray-500">{description}</p>
-        </div>
+    <div className="bg-white rounded-xl border-l-4 border-l-gray-300 shadow-sm p-5">
+      {/* Header */}
+      <div className="mb-4">
+        <h3 className="font-bold text-xl text-gray-900">{title}</h3>
+        <p className="text-sm text-gray-500">{description}</p>
       </div>
 
-      <div className="flex-1 flex flex-col justify-center">
-        {isEditing || usesLeft <= 0 ? (
-          <div className="space-y-4">
-            <div className="text-center p-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                <p className="text-sm text-gray-600 mb-2">
-                    {usesLeft <= 0 && key ? "Hết lượt sử dụng. Vui lòng nhập Key mới." : "Chưa có Key. Vui lòng nhập Key mới."}
-                </p>
-            </div>
-            <div className="space-y-2">
+      {/* Content */}
+      {isEditing || usesLeft <= 0 ? (
+        <div className="text-center">
+          {!showInput ? (
+            <>
+              <p className="text-gray-500 mb-4">
+                {usesLeft <= 0 && key ? "Hết lượt sử dụng" : "Chưa có Key"}
+              </p>
+              <button
+                onClick={() => setShowInput(true)}
+                className="inline-flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 px-6 rounded-lg transition-colors"
+              >
+                <Plus size={18} />
+                Lưu Key Mới
+              </button>
+            </>
+          ) : (
+            <div className="space-y-3">
               <input
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                placeholder="Dán Key vào đây..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                onKeyDown={(e) => e.key === "Enter" && handleSaveKey()}
+                placeholder="Dán key vào đây..."
+                autoFocus
+                className="w-full px-4 py-2.5 text-center border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-              <button
-                onClick={handleSaveKey}
-                disabled={!inputValue.trim()}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
-              >
-                Lưu & Sử dụng
-              </button>
+              <div className="flex gap-2 justify-center">
+                <button
+                  onClick={handleSaveKey}
+                  disabled={!inputValue.trim()}
+                  className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-semibold py-2 px-5 rounded-lg transition-colors"
+                >
+                  Lưu
+                </button>
+                <button
+                  onClick={() => setShowInput(false)}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-2 px-5 rounded-lg transition-colors"
+                >
+                  Hủy
+                </button>
+              </div>
             </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {/* Usage indicator */}
+          <div className="flex justify-center gap-1.5 mb-2">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className={`h-1.5 w-8 rounded-full ${i < usesLeft ? "bg-blue-500" : "bg-gray-200"}`} />
+            ))}
           </div>
-        ) : (
-          <div className="space-y-6">
-            <div className="text-center">
-                <p className="text-sm text-gray-500 mb-1">Số lượt còn lại</p>
-                <div className="flex items-center justify-center gap-1">
-                    {[...Array(3)].map((_, i) => (
-                        <div 
-                            key={i} 
-                            className={twMerge(
-                                "h-2 w-8 rounded-full transition-colors",
-                                i < usesLeft ? "bg-green-500" : "bg-gray-200"
-                            )}
-                        />
-                    ))}
-                </div>
-                <p className="text-xs text-gray-400 mt-2">{usesLeft}/3 lượt</p>
-            </div>
+          
+          {/* Key display */}
+          <div className="bg-gray-100 px-4 py-3 rounded-lg">
+            <p className="font-mono text-sm text-center text-gray-800 truncate select-all">{key}</p>
+          </div>
 
-            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <p className="font-mono text-center text-lg truncate select-all text-gray-800">
-                    {key.slice(0, 8)}••••{key.slice(-4)}
-                </p>
-            </div>
-
+          {/* Actions */}
+          <div className="flex gap-2 justify-center">
             <button
               onClick={handleUseKey}
-              className={twMerge(
-                "w-full flex items-center justify-center gap-2 font-medium py-3 px-4 rounded-lg transition-all",
+              className={`flex items-center gap-2 font-semibold py-2 px-5 rounded-lg transition-all ${
                 copied 
-                    ? "bg-green-100 text-green-700" 
-                    : "bg-gray-900 hover:bg-gray-800 text-white shadow-lg hover:shadow-xl"
-              )}
+                  ? "bg-green-500 text-white" 
+                  : "bg-blue-500 hover:bg-blue-600 text-white"
+              }`}
             >
-              {copied ? (
-                <>
-                  <Check size={18} />
-                  Đã sao chép!
-                </>
-              ) : (
-                <>
-                  <Copy size={18} />
-                  Sao chép Key
-                </>
-              )}
+              {copied ? <><Check size={16} /> Đã Copy</> : <><Copy size={16} /> Sao chép</>}
+            </button>
+            <button
+              onClick={handleReset}
+              className="p-2 rounded-lg bg-gray-200 hover:bg-red-100 text-gray-500 hover:text-red-500 transition-colors"
+              title="Reset"
+            >
+              <RotateCcw size={18} />
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
