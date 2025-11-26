@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useState, useEffect } from "react";
-import { Copy, Check, Plus, RotateCcw } from "lucide-react";
+import { Copy, Check, Plus, RotateCcw, Loader2 } from "lucide-react";
 
 interface KeyCardProps {
   title: string;
@@ -15,46 +15,104 @@ export default function KeyCard({ title, description, type }: KeyCardProps) {
   const [isEditing, setIsEditing] = useState(true);
   const [copied, setCopied] = useState(false);
   const [inputValue, setInputValue] = useState("");
-  const [mounted, setMounted] = useState(false);
   const [showInput, setShowInput] = useState(false);
+  const [loading, setLoading] = useState(true);
 
+  // Fetch key from database on mount
   useEffect(() => {
-    setMounted(true);
-    const storedKey = localStorage.getItem(`shareky_${type}_key`);
-    const storedUses = localStorage.getItem(`shareky_${type}_uses`);
-    if (storedKey && storedUses) {
-      const uses = parseInt(storedUses);
-      if (uses > 0) { setKey(storedKey); setUsesLeft(uses); setIsEditing(false); }
-    }
+    fetchKey();
   }, [type]);
 
-  const handleSaveKey = () => {
-    if (!inputValue.trim()) return;
-    setKey(inputValue.trim());
-    setUsesLeft(3);
-    setIsEditing(false);
-    setShowInput(false);
-    localStorage.setItem(`shareky_${type}_key`, inputValue.trim());
-    localStorage.setItem(`shareky_${type}_uses`, "3");
-    setInputValue("");
+  const fetchKey = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/keys?type=${type}`);
+      const data = await res.json();
+      
+      if (data.key && data.key.usesRemaining > 0) {
+        setKey(data.key.keyValue);
+        setUsesLeft(data.key.usesRemaining);
+        setIsEditing(false);
+      } else {
+        setIsEditing(true);
+      }
+    } catch (error) {
+      console.error("Error fetching key:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUseKey = () => {
+  const handleSaveKey = async () => {
+    if (!inputValue.trim()) return;
+    
+    try {
+      setLoading(true);
+      const res = await fetch("/api/keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, keyValue: inputValue.trim() }),
+      });
+      const data = await res.json();
+      
+      if (data.key) {
+        setKey(data.key.keyValue);
+        setUsesLeft(data.key.usesRemaining);
+        setIsEditing(false);
+        setShowInput(false);
+        setInputValue("");
+      }
+    } catch (error) {
+      console.error("Error saving key:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUseKey = async () => {
     navigator.clipboard.writeText(key);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
-    const newUses = usesLeft - 1;
-    setUsesLeft(newUses);
-    localStorage.setItem(`shareky_${type}_uses`, newUses.toString());
+
+    try {
+      const res = await fetch("/api/keys", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
+      const data = await res.json();
+      
+      if (data.key) {
+        setUsesLeft(data.key.usesRemaining);
+      }
+    } catch (error) {
+      console.error("Error updating key:", error);
+    }
   };
 
-  const handleReset = () => {
-    setIsEditing(true); setKey(""); setUsesLeft(0); setInputValue(""); setShowInput(false);
-    localStorage.removeItem(`shareky_${type}_key`);
-    localStorage.removeItem(`shareky_${type}_uses`);
+  const handleReset = async () => {
+    try {
+      setLoading(true);
+      await fetch(`/api/keys?type=${type}`, { method: "DELETE" });
+      setIsEditing(true);
+      setKey("");
+      setUsesLeft(0);
+      setInputValue("");
+      setShowInput(false);
+    } catch (error) {
+      console.error("Error deleting key:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (!mounted) return <div className="h-32 bg-white rounded-xl animate-pulse" />;
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border-l-4 border-l-gray-300 shadow-sm p-5 flex items-center justify-center h-40">
+        <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-xl border-l-4 border-l-gray-300 shadow-sm p-5">
